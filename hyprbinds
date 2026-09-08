@@ -123,6 +123,7 @@ hyprbinds() {
         "SUPER": "LEFTMETA",
         "ALT": "LEFTALT",
         "CTRL": "LEFTCTRL",
+        "SHIFT": "LEFTSHIFT",
         "KP_ADD": "KPPLUS",
         "KP_SUBTRACT": "KPMINUS"
       }
