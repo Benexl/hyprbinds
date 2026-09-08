@@ -118,10 +118,19 @@ hyprbinds() {
   [ -z "$bind" ] && exit 1
 
   if _dep_ch ydotool; then
+    resolver="$(printf '
+      {
+        "SUPER": "LEFTMETA",
+        "ALT": "LEFTALT",
+        "CTRL": "LEFTCTRL",
+        "KP_ADD": "KPPLUS",
+        "KP_SUBTRACT": "KPMINUS"
+      }
+    ')"
     cmd="$(
       cat /usr/include/linux/input-event-codes.h |
-        jq --raw-input --raw-output --slurp --arg keybind "$bind" '
-        ($keybind | split("+") | map(if . == "SUPER" then "LEFTMETA" elif . == "ALT" then "LEFTALT" elif . == "CTRL" then "LEFTCTRL" else . end)) as $keys
+        jq --raw-input --raw-output --slurp --argjson resolver "$resolver" --arg keybind "$bind" '
+        ($keybind | split("+") | map(if $resolver[.] != null then $resolver[.] else . end)) as $keys
         | split("\n")
         | map(
           select(
