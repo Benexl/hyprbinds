@@ -101,21 +101,13 @@ hyprbinds() {
       cat /usr/include/linux/input-event-codes.h |
         jq --raw-input --raw-output --slurp --argjson resolver "$resolver" --arg keybind "$bind" '
         ($keybind | split("+") | map(if $resolver[.] != null then $resolver[.] else . end)) as $keys
-        | split("\n")
+        | split("\n")| map(split("[ \\t]+"; null) as $line | {key:"\($line[1])", "value":$line}) | from_entries as $input_codes
+        | $keys
         | map(
-          select(
-            . as $line
-            | any(
-                $keys[]; . as $key
-              | $line
-              | test("^#define\\s+KEY_\($key | ascii_upcase)\\s+\\d+")
-              )
-          )
-          | split("[ \\t]+"; null)
-          | .[2]
-        ) 
-        | (. | map("\(.):1") | reverse | join(" ")) as $initial_state
-        | (. | map("\(.):0") | reverse | join(" ")) as $final_state
+          $input_codes["KEY_\(. | ascii_upcase)"].[2]
+        )
+        | (. | map("\(.):1") | join(" ")) as $initial_state
+        | (. | map("\(.):0") | join(" ")) as $final_state
         | $initial_state + " " + $final_state
       '
     )"
