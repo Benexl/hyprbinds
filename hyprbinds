@@ -90,6 +90,9 @@ hyprbinds() {
         "ALT": "LEFTALT",
         "CTRL": "LEFTCTRL",
         "SHIFT": "LEFTSHIFT",
+        "XF86AudioPlay": "PLAYPAUSE",
+        "XF86AudioNext": "NEXT",
+        "XF86AudioPrev": "PREVIOUS",
         "KP_ADD": "KPPLUS",
         "KP_SUBTRACT": "KPMINUS"
       }
