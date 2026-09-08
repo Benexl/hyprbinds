@@ -38,49 +38,15 @@ _load_config() {
 }
 
 __ui_gum_launcher() {
-  local custom_opts
-  local multi_select
-  multi_select="$2"
-
-  [ "$multi_select" = "multi" ] && custom_opts="--no-limit"
-  # [ -n "$CONFIG_FZF_HEADER" ] && custom_opts="$custom_opts --header $CONFIG_FZF_HEADER"
-
-  local old_ifs
-  old_ifs="$IFS"
-  IFS=" "
-
-  # shellcheck disable=SC2086
-  gum filter $CONFIG_GUM_FILTER_OPTS --prompt="${1}: " $custom_opts
-
-  IFS="$old_ifs"
+  gum filter --prompt="${1}: "
 }
 
 __ui_fzf_launcher() {
-  local custom_opts
-  local multi_select
-  multi_select="$2"
-
-  [ "$multi_select" = "multi" ] && custom_opts="--multi"
-  # [ -n "$CONFIG_FZF_HEADER" ] && custom_opts="$custom_opts --header-first --header=$CONFIG_FZF_HEADER"
-
-  local old_ifs
-  old_ifs="$IFS"
-  IFS=" "
-
-  # shellcheck disable=SC2086
-  fzf --prompt="${1}: " $custom_opts
-
-  IFS="$old_ifs"
+  fzf --prompt="${1}: "
 }
 
 __ui_rofi_launcher() {
-  local custom_opts
-  local multi_select
-
-  multi_select="$2"
-  [ "$multi_select" = "multi" ] && custom_opts="-multi-select"
-
-  rofi -sort -sorting-method fzf -matching fuzzy -dmenu -i $custom_opts -p "$1" -matching fuzzy
+  rofi -sort -sorting-method fzf -matching fuzzy -dmenu -i -p "$1" -matching fuzzy
 }
 
 _ui_launcher() {
@@ -166,24 +132,27 @@ _app_usage() {
   exit "${0:-1}"
 }
 
-while [ $# -gt 0 ]; do
-  shift_count=1
-  case "$1" in
-  -l | --launcher)
-    CONFIG_LAUNCHER="$2"
-    shift_count=2
-    ;;
-  -h | --help) _app_usage ;;
-  *) _app_usage 1 ;;
-  esac
-  shift "$shift_count"
-done
+_app_parse_cmdline() {
+  while [ $# -gt 0 ]; do
+    shift_count=1
+    case "$1" in
+    -l | --launcher)
+      CONFIG_LAUNCHER="$2"
+      shift_count=2
+      ;;
+    -h | --help) _app_usage ;;
+    *) _app_usage 1 ;;
+    esac
+    shift "$shift_count"
+  done
+}
 
 main() {
   _app_dep_ch
   _load_default_lang
   _load_config
+  _app_parse_cmdline "$@"
   hyprbinds
 }
 
-main
+main "$@"
