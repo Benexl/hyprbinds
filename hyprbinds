@@ -1,0 +1,179 @@
+#!/usr/bin/env sh
+# shellcheck disable=SC1090,SC3043
+# ==============================================================================
+# hyprbinds - a simple command palette / cheat sheet for your hyprland keybinds
+# GPLv3 License - Copyright (c) Tue 08 September, 2026 Benexl
+# ==============================================================================
+# File wide shellcheck ignores
+# ==============================================================================
+# SC1090 – Can't follow non-constant source. Use a directive to specify location
+# unhelpful in most cases
+# ==============================================================================
+# SC3043 – In POSIX sh, `local` is undefined.
+# we manually handle this by defining a fallback
+# ==============================================================================
+# Scoped shellcheck ignores
+# ==============================================================================
+# SC1091 – Not following: (error message here)
+# SC2086 – Double quote to prevent globbing and word splitting.
+# SC2034 – foo appears unused. Verify it or export it.
+# SC2120 – foo references arguments, but none are ever passed.
+# SC2155 – Declare and assign separately to avoid masking return values.
+# ==============================================================================
+
+_dep_ch() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+if ! _dep_ch local; then
+  eval 'local() { unset -v $1; }'
+fi
+
+_load_default_lang() {
+  TXT_SELECT_KEYBIND="Select keybind"
+}
+
+_load_config() {
+  CONFIG_LAUNCHER="rofi"
+}
+
+__ui_gum_launcher() {
+  local custom_opts
+  local multi_select
+  multi_select="$2"
+
+  [ "$multi_select" = "multi" ] && custom_opts="--no-limit"
+  # [ -n "$CONFIG_FZF_HEADER" ] && custom_opts="$custom_opts --header $CONFIG_FZF_HEADER"
+
+  local old_ifs
+  old_ifs="$IFS"
+  IFS=" "
+
+  # shellcheck disable=SC2086
+  gum filter $CONFIG_GUM_FILTER_OPTS --prompt="${1}: " $custom_opts
+
+  IFS="$old_ifs"
+}
+
+__ui_fzf_launcher() {
+  local custom_opts
+  local multi_select
+  multi_select="$2"
+
+  [ "$multi_select" = "multi" ] && custom_opts="--multi"
+  # [ -n "$CONFIG_FZF_HEADER" ] && custom_opts="$custom_opts --header-first --header=$CONFIG_FZF_HEADER"
+
+  local old_ifs
+  old_ifs="$IFS"
+  IFS=" "
+
+  # shellcheck disable=SC2086
+  fzf --prompt="${1}: " $custom_opts
+
+  IFS="$old_ifs"
+}
+
+__ui_rofi_launcher() {
+  local custom_opts
+  local multi_select
+
+  multi_select="$2"
+  [ "$multi_select" = "multi" ] && custom_opts="-multi-select"
+
+  rofi -sort -sorting-method fzf -matching fuzzy -dmenu -i $custom_opts -p "$1" -matching fuzzy
+}
+
+_ui_launcher() {
+  case "$CONFIG_LAUNCHER" in
+  rofi) __ui_rofi_launcher "$@" ;;
+  fzf) __ui_fzf_launcher "$@" ;;
+  gum) __ui_gum_launcher "$@" ;;
+  *) ui_notify_critical "$TXT_LAUNCHER_UNKNOWN: $CONFIG_LAUNCHER" ;;
+  esac
+}
+
+ui_launcher() {
+  _ui_launcher "$@"
+}
+
+_binds() {
+  hyprctl binds -j | jq -r '
+    def modmask_to_name:
+      . as $m
+      | [
+          {n:"SUPER",v:64}, {n:"MOD3",v:32}, {n:"MOD2",v:16},
+          {n:"ALT",v:8},    {n:"CTRL",v:4},  {n:"CAPS",v:2}, {n:"SHIFT",v:1}
+        ]
+      | map(select(($m / .v | floor) % 2 == 1) | .n)
+      | join("+");
+    .[]
+    | ((.modmask | modmask_to_name) + "+" + .key | ltrimstr("+")) as $keybind
+    | "[\($keybind)] \(.description)"
+  '
+}
+
+hyprbinds() {
+  bind="$(_binds | ui_launcher "$TXT_SELECT_KEYBIND" | sed -e 's/^\[//g' -e 's/].*//g')"
+
+  [ -z "$bind" ] && exit 1
+
+  if _dep_ch ydotool; then
+    cmd="$(
+      cat /usr/include/linux/input-event-codes.h |
+        jq --raw-input --raw-output --slurp --arg keybind "$bind" '
+        ($keybind | split("+") | map(if . == "SUPER" then "LEFTMETA" elif . == "ALT" then "LEFTALT" elif . == "CTRL" then "LEFTCTRL" else . end)) as $keys
+        | split("\n")
+        | map(
+          select(
+            . as $line
+            | any(
+                $keys[]; . as $key
+              | $line
+              | test("^#define\\s+KEY_\($key | ascii_upcase)\\s+\\d+")
+              )
+          )
+          | split("[ \\t]+"; null)
+          | .[2]
+        ) 
+        | (. | map("\(.):1") | reverse | join(" ")) as $initial_state
+        | (. | map("\(.):0") | reverse | join(" ")) as $final_state
+        | $initial_state + " " + $final_state
+      '
+    )"
+    printf '%s' "$cmd"
+    # shellcheck disable=SC2086
+    ydotool key $cmd
+  fi
+}
+
+_app_dep_ch() {
+  ! _dep_ch jq && printf '%s: jq\n' "$TXT_DEP_MISSING" && exit 1
+  ! _dep_ch hyprctl && printf '%s: hyprctl\n' "$TXT_DEP_MISSING" && exit 1
+}
+
+_app_usage() {
+  printf 'usage'
+  exit "${0:-1}"
+}
+
+while [ $# -gt 0 ]; do
+  shift_count=1
+  case "$1" in
+  -l | --launcher)
+    CONFIG_LAUNCHER="$2"
+    shift_count=2
+    ;;
+  -h | --help) _app_usage ;;
+  *) _app_usage 1 ;;
+  esac
+  shift "$shift_count"
+done
+
+main() {
+  _app_dep_ch
+  _load_default_lang
+  _load_config
+  hyprbinds
+}
+
+main
